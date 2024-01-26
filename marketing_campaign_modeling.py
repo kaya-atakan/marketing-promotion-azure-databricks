@@ -146,7 +146,7 @@ from pyspark.ml.regression import RandomForestRegressor
 from pyspark.ml import Pipeline
 
 # Feature engineering: index the categorical column and assemble features
-indexer = StringIndexer(inputCol="PromotionPeriodCategory", outputCol="PromotionPeriodCategoryIndex")
+indexer = StringIndexer(inputCol="PromotionPeriodCategory", outputCol="PromotionPeriodCategoryIndex", handleInvalid="keep")
 assembler = VectorAssembler(
     inputCols=["PromotionPeriodCategoryIndex", "StoreCode", "ProductCode", "WeekOfYear", "DayOfWeek", "Month"],
     outputCol="features"
@@ -197,7 +197,7 @@ new_sales_sdf.display(10)
 
 # COMMAND ----------
 
-# Assuming 'model' is the trained PipelineModel
+# 'model' is the trained PipelineModel
 string_indexer_model = model.stages[0]  # Replace 0 with the correct index of StringIndexerModel in your pipeline
 vector_assembler = model.stages[1]  # Replace 1 with the correct index of VectorAssembler in your pipeline
 
@@ -218,11 +218,11 @@ new_sales_sdf = string_indexer_model.transform(new_sales_sdf)
 # Apply VectorAssembler transformation
 new_sales_sdf = vector_assembler.transform(new_sales_sdf)
 
-# Assuming 'model' is the RandomForestRegressor model extracted from your trained pipeline
+# 'model' is the RandomForestRegressor model extracted from your trained pipeline
 # Now make predictions
 
 # Extract the RandomForestRegressor model from the trained pipeline
-rf_model = model.stages[-1]  # Assuming RandomForestRegressor is the last stage in your pipeline
+rf_model = model.stages[-1]  # RandomForestRegressor is the last stage in your pipeline
 
 new_predictions = rf_model.transform(new_sales_sdf)
 
@@ -231,6 +231,45 @@ new_predictions = rf_model.transform(new_sales_sdf)
 # COMMAND ----------
 
 new_predictions.display(10)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col, avg
+
+# Filter out the predictions for the 'During-Promotion' period
+promo5_predictions = new_predictions.filter(col('PromotionPeriodCategory') == "During-Promotion")
+
+# Group by StoreCode and ProductCode, and calculate the average predicted sales
+avg_predicted_sales = promo5_predictions.groupBy("StoreCode", "ProductCode")\
+                                        .agg(avg("prediction").alias("AvgPredictedSales"))
+
+# COMMAND ----------
+
+promo5_predictions.display(10)
+
+# COMMAND ----------
+
+# Filter the new_sales_sdf for the 'During-Promotion' period
+actual_sales_during_promo5 = new_sales_sdf.filter(col("PromotionPeriodCategory") == "During-Promotion")
+
+# Group by StoreCode and ProductCode, and calculate the average actual sales
+avg_actual_sales = actual_sales_during_promo5.groupBy("StoreCode", "ProductCode")\
+                                             .agg(avg("SalesQuantity").alias("AvgActualSales"))
+
+
+# COMMAND ----------
+
+# Join the predicted and actual sales dataframes for comparison
+comparison_df = avg_predicted_sales.join(avg_actual_sales, ["StoreCode", "ProductCode"])
+
+# Show the comparison
+comparison_df.show()
+
+# Optionally, calculate error metrics like RMSE
+# This requires converting to a Pandas DataFrame and using a library like scikit-learn or manually computing RMSE
+comparison_pd = comparison_df.toPandas()
+rmse = ((comparison_pd['AvgPredictedSales'] - comparison_pd['AvgActualSales']) ** 2).mean() ** 0.5
+print(f"Root Mean Squared Error (RMSE): {rmse}")
 
 # COMMAND ----------
 
