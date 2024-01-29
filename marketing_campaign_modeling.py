@@ -201,11 +201,6 @@ new_sales_sdf.display(10)
 string_indexer_model = model.stages[0]  # Replace 0 with the correct index of StringIndexerModel in your pipeline
 vector_assembler = model.stages[1]  # Replace 1 with the correct index of VectorAssembler in your pipeline
 
-# Transform the new data with StringIndexerModel
-# new_sales_sdf = string_indexer_model.transform(new_sales_sdf)
-
-# Now apply VectorAssembler
-# new_sales_sdf = vector_assembler.transform(new_sales_sdf)
 
 # COMMAND ----------
 
@@ -218,12 +213,10 @@ new_sales_sdf = string_indexer_model.transform(new_sales_sdf)
 # Apply VectorAssembler transformation
 new_sales_sdf = vector_assembler.transform(new_sales_sdf)
 
-# 'model' is the RandomForestRegressor model extracted from your trained pipeline
-# Now make predictions
-
 # Extract the RandomForestRegressor model from the trained pipeline
 rf_model = model.stages[-1]  # RandomForestRegressor is the last stage in your pipeline
 
+# Now make predictions
 new_predictions = rf_model.transform(new_sales_sdf)
 
 
